@@ -59,7 +59,7 @@ function orders(){
  return `<div class="toolbar"><input placeholder="Search order/customer..." oninput="filterOrders(this.value)"><button class="primary" onclick="alert('Order form will be connected to the database in the next stage.')">+ New Order</button></div>
  <div class="table-wrap"><table class="table"><thead><tr><th>Order ID</th><th>Customer</th><th>Amount</th><th>Status</th><th>Date</th><th>Telecaller</th></tr></thead><tbody id="orderRows">${orderRows(state.orders)}</tbody></table></div>`;
 }
-function orderRows(arr){return arr.map(o=>`<tr><td><b>${o.id}</b></td><td>${o.customer}</td><td>${money(o.amount)}</td><td><span class="badge ${o.status==="Delivered"?"green":o.status==="Processing"?"orange":"")">${o.status}</span></td><td>${o.date}</td><td>${o.caller}</td></tr>`).join("")}
+function orderRows(arr){return arr.map(o=>`<tr><td><b>${o.id}</b></td><td>${o.customer}</td><td>${money(o.amount)}</td><td><span class="badge ${o.status==="Delivered"?"green":o.status==="Processing"?"orange":"red"}">${o.status}</span></td><td>${o.date}</td><td>${o.caller}</td></tr>`).join("")}
 function filterOrders(q){const a=state.orders.filter(o=>(o.id+o.customer+o.status+o.caller).toLowerCase().includes(q.toLowerCase()));document.getElementById("orderRows").innerHTML=orderRows(a)}
 function followups(){
  return `<div class="card"><h3 class="section-title">Today's Follow-ups</h3><div class="empty">No follow-ups scheduled yet. Database automation will be added in the next stage.</div></div>`;
