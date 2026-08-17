@@ -9,34 +9,35 @@
 <body>
 <div id="login" class="login-wrap">
   <div class="login-card">
-    <div class="brand"><span class="logo">M</span><div><b>MedAid Home</b><small>CRM Panel</small></div></div>
-    <h1>Welcome back</h1>
-    <p class="muted">Sign in to manage customers, orders and team.</p>
+    <div class="brand"><span class="logo">M</span><div><b>MedAid Home</b><small>CRM + WhatsApp</small></div></div>
+    <h1>Welcome back</h1><p class="muted">Manage customers, orders and WhatsApp campaigns.</p>
     <label>Email</label><input id="email" type="email" placeholder="admin@medaidhome.com">
     <label>Password</label><input id="password" type="password" placeholder="••••••••">
     <button class="primary full" onclick="login()">Sign in</button>
     <div id="loginError" class="error"></div>
-    <p class="hint">Demo admin: admin@medaidhome.com / admin123</p>
+    <p class="hint">Demo: admin@medaidhome.com / admin123</p>
   </div>
 </div>
 
 <div id="app" class="app hidden">
-  <aside class="sidebar">
-    <div class="brand side-brand"><span class="logo">M</span><div><b>MedAid Home</b><small>CRM Panel</small></div></div>
-    <nav>
-      <button class="nav active" data-page="dashboard">▦ <span>Dashboard</span></button>
-      <button class="nav" data-page="customers">◉ <span>Customers</span></button>
-      <button class="nav" data-page="orders">▣ <span>Orders</span></button>
-      <button class="nav" data-page="followups">◷ <span>Follow-ups</span></button>
-      <button class="nav" data-page="staff">♙ <span>Telecallers</span></button>
-      <button class="nav" data-page="reports">▥ <span>Reports</span></button>
-    </nav>
-    <button class="logout" onclick="logout()">↪ Logout</button>
-  </aside>
-  <main class="main">
-    <header><div><h2 id="pageTitle">Dashboard</h2><p id="pageSub" class="muted">Overview of your CRM</p></div><div class="user">Admin <span>●</span></div></header>
-    <section id="page"></section>
-  </main>
+<aside class="sidebar">
+ <div class="brand side-brand"><span class="logo">M</span><div><b>MedAid Home</b><small>CRM + WhatsApp</small></div></div>
+ <nav>
+  <button class="nav active" data-page="dashboard">▦ <span>Dashboard</span></button>
+  <button class="nav" data-page="customers">◉ <span>Customers</span></button>
+  <button class="nav" data-page="orders">▣ <span>Orders</span></button>
+  <button class="nav" data-page="campaigns">◉ <span>WhatsApp Campaigns</span></button>
+  <button class="nav" data-page="templates">✉ <span>Templates</span></button>
+  <button class="nav" data-page="followups">◷ <span>Follow-ups</span></button>
+  <button class="nav" data-page="staff">♙ <span>Telecallers</span></button>
+  <button class="nav" data-page="reports">▥ <span>Reports</span></button>
+ </nav>
+ <button class="logout" onclick="logout()">↪ Logout</button>
+</aside>
+<main class="main">
+<header><div><h2 id="pageTitle">Dashboard</h2><p id="pageSub" class="muted">Overview of your CRM</p></div><div class="user">Admin <span>●</span></div></header>
+<section id="page"></section>
+</main>
 </div>
 <script src="app.js"></script>
 </body>
