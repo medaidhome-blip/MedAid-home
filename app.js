@@ -1,49 +1,392 @@
-const defaultState={
- customers:[
-  {id:"C001",name:"Rahul Sharma",phone:"9876543210",city:"Indore",orders:4,value:14800,last:"2026-08-15",optin:true,optinSource:"WhatsApp",status:"Active"},
-  {id:"C002",name:"Priya Verma",phone:"9123456780",city:"Kota",orders:2,value:6200,last:"2026-08-12",optin:true,optinSource:"Website",status:"Active"},
-  {id:"C003",name:"Amit Jain",phone:"9988776655",city:"Dewas",orders:1,value:2400,last:"2026-08-10",optin:false,optinSource:"",status:"New"}
- ],
- orders:[
-  {id:"ORD1001",customer:"Rahul Sharma",amount:4200,status:"Delivered",date:"2026-08-15",caller:"Ayesha"},
-  {id:"ORD1002",customer:"Priya Verma",amount:2800,status:"Processing",date:"2026-08-16",caller:"Riya"},
-  {id:"ORD1003",customer:"Amit Jain",amount:2400,status:"Confirmed",date:"2026-08-16",caller:"Ayesha"}
- ],
- templates:[
-  {name:"medicine_offer",language:"en",category:"MARKETING",status:"DEMO_APPROVED",body:"Hi {{1}}, MedAid Home has a special offer on medicines. Get up to {{2}}% off. Reply STOP to opt out."},
-  {name:"order_update",language:"en",category:"UTILITY",status:"DEMO_APPROVED",body:"Hi {{1}}, your order {{2}} is {{3}}."}
- ],
- campaigns:[],
- staff:[{name:"Ayesha",phone:"9096144388",orders:1,sales:4200},{name:"Riya",phone:"9000000000",orders:1,sales:2800}]
-};
-let state=JSON.parse(localStorage.getItem("medaidCRMv3"))||defaultState;
-function save(){localStorage.setItem("medaidCRMv3",JSON.stringify(state))}
-function login(){const e=document.getElementById("email").value.trim(),p=document.getElementById("password").value;if(e==="admin@medaidhome.com"&&p==="admin123"){localStorage.setItem("medaidLoggedIn","1");showApp()}else document.getElementById("loginError").textContent="Incorrect email or password."}
-function logout(){localStorage.removeItem("medaidLoggedIn");location.reload()}
-function showApp(){document.getElementById("login").classList.add("hidden");document.getElementById("app").classList.remove("hidden");render("dashboard")}
-document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav").forEach(x=>x.classList.remove("active"));b.classList.add("active");render(b.dataset.page)});
-function money(n){return "₹"+Number(n||0).toLocaleString("en-IN")}
-function render(page){
- const t={dashboard:["Dashboard","Overview of your CRM"],customers:["Customers","Customer database + WhatsApp consent"],orders:["Orders","Track every order"],campaigns:["WhatsApp Campaigns","Create and prepare compliant WhatsApp campaigns"],templates:["Templates","Meta/WhatsApp message templates"],followups:["Follow-ups","Customers requiring action"],staff:["Telecallers","Team performance"],reports:["Reports","Sales and WhatsApp reports"]};
- document.getElementById("pageTitle").textContent=t[page][0];document.getElementById("pageSub").textContent=t[page][1];
- const el=document.getElementById("page");
- el.innerHTML=({dashboard,customers,orders,campaigns,templates,followups,staff,reports}[page])();
+const { createClient } = supabase;
+const sb = createClient(window.MEDAID_SUPABASE_URL, window.MEDAID_SUPABASE_PUBLISHABLE_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true }
+});
+
+let currentUser = null;
+let customerCache = [];
+
+async function login() {
+  const e = document.getElementById("email").value.trim();
+  const p = document.getElementById("password").value;
+  const err = document.getElementById("loginError");
+  err.textContent = "";
+
+  if (!window.MEDAID_SUPABASE_PUBLISHABLE_KEY ||
+      window.MEDAID_SUPABASE_PUBLISHABLE_KEY.includes("PASTE_")) {
+    err.textContent = "Supabase Publishable Key is missing in config.js.";
+    return;
+  }
+
+  const { data, error } = await sb.auth.signInWithPassword({ email: e, password: p });
+  if (error) {
+    err.textContent = error.message;
+    return;
+  }
+
+  currentUser = data.user;
+  showApp();
 }
-function dashboard(){const sales=state.orders.reduce((a,b)=>a+Number(b.amount),0);const opt=state.customers.filter(x=>x.optin).length;return `<div class="grid"><div class="card"><div class="label">Total Customers</div><div class="stat">${state.customers.length}</div></div><div class="card"><div class="label">WhatsApp Opt-ins</div><div class="stat">${opt}</div></div><div class="card"><div class="label">Sales</div><div class="stat">${money(sales)}</div></div><div class="card"><div class="label">Campaigns</div><div class="stat">${state.campaigns.length}</div></div></div><div class="card" style="margin-top:18px"><h3 class="section-title">WhatsApp readiness</h3><div class="notice">This V3 has the CRM screens and API-ready campaign structure. Actual Meta sending will be enabled only after a Meta WhatsApp Business Account, phone number, approved templates and secure server credentials are connected.</div><div class="quick"><button class="primary" onclick="go('campaigns')">Create Campaign</button><button class="secondary" onclick="go('templates')">View Templates</button></div></div>`}
-function customers(){return `<div class="toolbar"><input placeholder="Search customer..." oninput="filterCustomers(this.value)"><button class="primary" onclick="openCustomerForm()">+ Add Customer</button></div><div class="table-wrap"><table class="table"><thead><tr><th>ID</th><th>Customer</th><th>Phone</th><th>City</th><th>Orders</th><th>Value</th><th>WhatsApp</th><th>Action</th></tr></thead><tbody id="customerRows">${customerRows(state.customers)}</tbody></table></div>`}
-function customerRows(a){return a.map(c=>`<tr><td>${c.id}</td><td><b>${c.name}</b></td><td>${c.phone}</td><td>${c.city}</td><td>${c.orders}</td><td>${money(c.value)}</td><td><span class="badge ${c.optin?"green":"red"}">${c.optin?"Opt-in":"No opt-in"}</span></td><td><button class="secondary" style="padding:7px 10px" onclick="deleteCustomer('${c.id}')">Delete</button></td></tr>`).join("")}
-function filterCustomers(q){const a=state.customers.filter(c=>(c.name+c.phone+c.city).toLowerCase().includes(q.toLowerCase()));document.getElementById("customerRows").innerHTML=customerRows(a)}
-function openCustomerForm(){const modal=document.createElement("div");modal.className="modal";modal.innerHTML=`<div class="modal-card"><h3>Add Customer</h3><div class="formgrid"><div class="field"><label>Name</label><input id="cn"></div><div class="field"><label>Mobile (10 digit)</label><input id="cp"></div><div class="field"><label>City</label><input id="cc"></div><div class="field"><label>WhatsApp consent source</label><select id="co"><option value="WhatsApp">WhatsApp</option><option value="Website">Website</option><option value="Call">Call</option><option value="Other">Other</option></select></div></div><label class="check" style="margin-top:16px"><input id="ci" type="checkbox"> Customer has opted in to receive WhatsApp messages</label><div class="modal-actions"><button class="secondary" onclick="this.closest('.modal').remove()">Cancel</button><button class="primary" onclick="saveCustomer(this)">Save Customer</button></div></div>`;document.body.appendChild(modal)}
-function saveCustomer(btn){const name=document.getElementById("cn").value.trim(),phone=document.getElementById("cp").value.trim(),city=document.getElementById("cc").value.trim(),opt=document.getElementById("ci").checked;if(!name||!/^\d{10}$/.test(phone)||!city)return alert("Name, valid 10-digit mobile and city are required.");if(opt===false && confirm("Customer is not opted in. Save as non-marketing contact?")===false)return;state.customers.push({id:"C"+String(Date.now()).slice(-6),name,phone,city,orders:0,value:0,last:"",optin:opt,optinSource:opt?document.getElementById("co").value:"",status:"New"});save();btn.closest(".modal").remove();render("customers")}
-function deleteCustomer(id){const c=state.customers.find(x=>x.id===id);if(c&&confirm("Delete "+c.name+"?")){state.customers=state.customers.filter(x=>x.id!==id);save();render("customers")}}
-function orders(){return `<div class="toolbar"><input placeholder="Search order/customer..." oninput="filterOrders(this.value)"><button class="primary" onclick="alert('Order creation will be connected to the database in the next stage.')">+ New Order</button></div><div class="table-wrap"><table class="table"><thead><tr><th>Order ID</th><th>Customer</th><th>Amount</th><th>Status</th><th>Date</th><th>Telecaller</th></tr></thead><tbody id="orderRows">${orderRows(state.orders)}</tbody></table></div>`}
-function orderRows(a){return a.map(o=>`<tr><td><b>${o.id}</b></td><td>${o.customer}</td><td>${money(o.amount)}</td><td><span class="badge ${o.status==="Delivered"?"green":o.status==="Processing"?"orange":"purple"}">${o.status}</span></td><td>${o.date}</td><td>${o.caller}</td></tr>`).join("")}
-function filterOrders(q){document.getElementById("orderRows").innerHTML=orderRows(state.orders.filter(o=>(o.id+o.customer+o.status+o.caller).toLowerCase().includes(q.toLowerCase())))}
-function templates(){return `<div class="notice">Only templates approved/available in your WhatsApp Business account should be sent through the production API. The examples below are demo records until we sync Meta templates.</div><div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Category</th><th>Language</th><th>Status</th><th>Preview</th></tr></thead><tbody>${state.templates.map(t=>`<tr><td><b>${t.name}</b></td><td>${t.category}</td><td>${t.language}</td><td><span class="badge green">${t.status}</span></td><td>${t.body}</td></tr>`).join("")}</tbody></table></div>`}
-function campaigns(){return `<div class="notice">Marketing campaigns should target customers who have valid WhatsApp consent. The production sender will use Meta-approved templates; the browser will never store your permanent Meta access token.</div><div class="card"><h3 class="section-title">Create WhatsApp Campaign</h3><div class="formgrid"><div class="field"><label>Campaign name</label><input id="campName" placeholder="August medicine offer"></div><div class="field"><label>Template</label><select id="campTemplate">${state.templates.filter(t=>t.category==="MARKETING").map(t=>`<option value="${t.name}">${t.name}</option>`).join("")}</select></div><div class="field"><label>Audience</label><select id="campAudience"><option value="optin">All WhatsApp opt-ins</option><option value="indore">Opt-ins in Indore</option><option value="repeat">Opt-ins with previous orders</option></select></div><div class="field"><label>Offer variable</label><input id="campOffer" placeholder="27"></div></div><div style="margin-top:18px"><button class="primary" onclick="prepareCampaign()">Prepare Campaign</button></div></div><div class="card" style="margin-top:18px"><h3 class="section-title">Campaign History</h3>${state.campaigns.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Campaign</th><th>Template</th><th>Audience</th><th>Recipients</th><th>Status</th></tr></thead><tbody>${state.campaigns.map(c=>`<tr><td>${c.name}</td><td>${c.template}</td><td>${c.audience}</td><td>${c.recipients}</td><td><span class="badge orange">${c.status}</span></td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">No campaigns yet.</div>`}</div>`}
-function prepareCampaign(){const name=document.getElementById("campName").value.trim(),tpl=document.getElementById("campTemplate").value,aud=document.getElementById("campAudience").value,offer=document.getElementById("campOffer").value.trim()||"27";if(!name)return alert("Campaign name is required.");let list=state.customers.filter(c=>c.optin);if(aud==="indore")list=list.filter(c=>c.city.toLowerCase()==="indore");if(aud==="repeat")list=list.filter(c=>c.orders>0);const t=state.templates.find(x=>x.name===tpl);const preview=t.body.replace("{{1}}","Rahul").replace("{{2}}",offer);const ok=confirm(`READY FOR API SEND\\n\\nRecipients with opt-in: ${list.length}\\nTemplate: ${tpl}\\n\\nPreview:\\n${preview}\\n\\nThis demo will only queue the campaign; no WhatsApp message is sent yet.`);if(!ok)return;state.campaigns.push({name,template:tpl,audience:aud,recipients:list.length,status:"QUEUED"});save();render("campaigns")}
-function followups(){return `<div class="card"><h3 class="section-title">Today's Follow-ups</h3><div class="empty">Follow-up automation will be connected to the real database next.</div></div>`}
-function staff(){return `<div class="table-wrap"><table class="table"><thead><tr><th>Telecaller</th><th>Phone</th><th>Orders</th><th>Sales</th></tr></thead><tbody>${state.staff.map(s=>`<tr><td><b>${s.name}</b></td><td>${s.phone}</td><td>${s.orders}</td><td>${money(s.sales)}</td></tr>`).join("")}</tbody></table></div>`}
-function reports(){const sales=state.orders.reduce((a,b)=>a+Number(b.amount),0),sent=state.campaigns.reduce((a,b)=>a+b.recipients,0);return `<div class="grid"><div class="card"><div class="label">Total Sales</div><div class="stat">${money(sales)}</div></div><div class="card"><div class="label">WhatsApp Opt-ins</div><div class="stat">${state.customers.filter(x=>x.optin).length}</div></div><div class="card"><div class="label">Campaigns</div><div class="stat">${state.campaigns.length}</div></div><div class="card"><div class="label">Queued Recipients</div><div class="stat">${sent}</div></div></div>`}
-function go(p){document.querySelector(`[data-page="${p}"]`).click()}
-if(localStorage.getItem("medaidLoggedIn")==="1")showApp();
+
+async function logout() {
+  await sb.auth.signOut();
+  location.reload();
+}
+
+async function boot() {
+  const { data } = await sb.auth.getSession();
+  if (data.session) {
+    currentUser = data.session.user;
+    showApp();
+  } else {
+    document.getElementById("login").classList.remove("hidden");
+  }
+}
+
+function showApp() {
+  document.getElementById("login").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  render("dashboard");
+}
+
+document.querySelectorAll(".nav").forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll(".nav").forEach(x => x.classList.remove("active"));
+    btn.classList.add("active");
+    render(btn.dataset.page);
+  };
+});
+
+function money(n) {
+  return "₹" + Number(n || 0).toLocaleString("en-IN");
+}
+
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+
+async function render(page) {
+  const titles = {
+    dashboard:["Dashboard","Supabase-connected CRM"],
+    customers:["Customers","Live customer database"],
+    orders:["Orders","Live order database"],
+    campaigns:["WhatsApp Campaigns","Campaign workspace"],
+    templates:["Templates","Approved-template workspace"],
+    followups:["Follow-ups","Follow-up workspace"],
+    staff:["Telecallers","Team workspace"],
+    reports:["Reports","CRM reports"]
+  };
+
+  document.getElementById("pageTitle").textContent = titles[page][0];
+  document.getElementById("pageSub").textContent = titles[page][1];
+
+  const pages = {
+    dashboard, customers, orders, campaigns,
+    templates, followups, staff, reports
+  };
+
+  document.getElementById("page").innerHTML = await pages[page]();
+}
+
+async function dashboard() {
+  const [{ count: customers }, { count: orders }] = await Promise.all([
+    sb.from("customers").select("*", { count:"exact", head:true }),
+    sb.from("orders").select("*", { count:"exact", head:true })
+  ]);
+
+  const { data: orderData } = await sb.from("orders").select("amount");
+  const sales = (orderData || []).reduce((a,x) => a + Number(x.amount || 0), 0);
+
+  const { count: optins } = await sb
+    .from("customers")
+    .select("*", { count:"exact", head:true })
+    .eq("whatsapp_opt_in", true);
+
+  return `
+    <div class="grid">
+      <div class="card"><div class="label">Customers</div><div class="stat">${customers || 0}</div></div>
+      <div class="card"><div class="label">WhatsApp Opt-ins</div><div class="stat">${optins || 0}</div></div>
+      <div class="card"><div class="label">Orders</div><div class="stat">${orders || 0}</div></div>
+      <div class="card"><div class="label">Sales</div><div class="stat">${money(sales)}</div></div>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <h3>CRM database</h3>
+      <p class="muted">Customer and order data is stored in Supabase.</p>
+    </div>`;
+}
+
+async function customers() {
+  const { data, error } = await sb
+    .from("customers")
+    .select("*")
+    .order("created_at", { ascending:false });
+
+  if (error) return `<div class="notice">Database error: ${esc(error.message)}</div>`;
+
+  customerCache = data || [];
+
+  return `
+    <div class="toolbar">
+      <input id="customerSearch" placeholder="Search name, mobile or city..." oninput="filterCustomers(this.value)">
+      <button class="primary" onclick="openCustomerForm()">+ Add Customer</button>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Mobile</th>
+            <th>City</th>
+            <th>WhatsApp</th>
+            <th>Created</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="customerRows">${customerRows(customerCache)}</tbody>
+      </table>
+    </div>`;
+}
+
+function customerRows(list) {
+  if (!list.length) {
+    return `<tr><td colspan="6"><div class="empty">No customers found.</div></td></tr>`;
+  }
+
+  return list.map(c => `
+    <tr>
+      <td><b>${esc(c.name)}</b></td>
+      <td>${esc(c.phone)}</td>
+      <td>${esc(c.city || "-")}</td>
+      <td>
+        <span class="badge ${c.whatsapp_opt_in ? "green" : "orange"}">
+          ${c.whatsapp_opt_in ? "Opt-in" : "No opt-in"}
+        </span>
+      </td>
+      <td>${c.created_at ? new Date(c.created_at).toLocaleDateString("en-IN") : "-"}</td>
+      <td>
+        <button class="secondary" onclick="editCustomer('${c.id}')">Edit</button>
+        <button class="secondary" onclick="viewCustomer('${c.id}')">View</button>
+      </td>
+    </tr>`).join("");
+}
+
+function filterCustomers(q) {
+  q = q.toLowerCase();
+  const list = customerCache.filter(c =>
+    `${c.name} ${c.phone} ${c.city || ""}`.toLowerCase().includes(q)
+  );
+  document.getElementById("customerRows").innerHTML = customerRows(list);
+}
+
+function openCustomerForm(customer = null) {
+  const modal = document.createElement("div");
+  modal.className = "modal";
+
+  modal.innerHTML = `
+    <div class="modal-card">
+      <h3>${customer ? "Edit Customer" : "Add Customer"}</h3>
+
+      <div class="formgrid">
+        <div class="field">
+          <label>Full name</label>
+          <input id="cn" value="${esc(customer?.name || "")}">
+        </div>
+
+        <div class="field">
+          <label>Mobile number</label>
+          <input id="cp" maxlength="10" value="${esc(customer?.phone || "")}">
+        </div>
+
+        <div class="field">
+          <label>City</label>
+          <input id="cc" value="${esc(customer?.city || "")}">
+        </div>
+
+        <div class="field">
+          <label>WhatsApp opt-in source</label>
+          <select id="cs">
+            <option value="CRM">CRM</option>
+            <option value="Website">Website</option>
+            <option value="WhatsApp">WhatsApp</option>
+            <option value="Call">Call</option>
+          </select>
+        </div>
+      </div>
+
+      <label style="display:block;margin-top:15px">
+        <input id="ci" type="checkbox" ${customer?.whatsapp_opt_in ? "checked" : ""}>
+        Customer has opted in for WhatsApp marketing
+      </label>
+
+      <div class="modal-actions">
+        <button class="secondary" onclick="this.closest('.modal').remove()">Cancel</button>
+        <button class="primary" onclick="saveCustomer(this,'${customer?.id || ""}')">
+          Save Customer
+        </button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+}
+
+async function saveCustomer(btn, id) {
+  const name = document.getElementById("cn").value.trim();
+  const phone = document.getElementById("cp").value.trim();
+  const city = document.getElementById("cc").value.trim();
+  const optin = document.getElementById("ci").checked;
+  const source = document.getElementById("cs").value;
+
+  if (!name) return alert("Customer name is required.");
+  if (!/^\d{10}$/.test(phone)) return alert("Enter a valid 10-digit mobile number.");
+  if (!city) return alert("City is required.");
+
+  const payload = {
+    name,
+    phone,
+    city,
+    whatsapp_opt_in: optin,
+    opt_in_source: optin ? source : null,
+    opt_in_at: optin ? new Date().toISOString() : null,
+    opted_out_at: optin ? null : new Date().toISOString()
+  };
+
+  let result;
+
+  if (id) {
+    result = await sb.from("customers").update(payload).eq("id", id);
+  } else {
+    result = await sb.from("customers").insert(payload);
+  }
+
+  if (result.error) {
+    if (result.error.code === "23505") {
+      alert("This mobile number already exists in the CRM.");
+    } else {
+      alert(result.error.message);
+    }
+    return;
+  }
+
+  btn.closest(".modal").remove();
+  await render("customers");
+}
+
+function editCustomer(id) {
+  const customer = customerCache.find(x => x.id === id);
+  if (customer) openCustomerForm(customer);
+}
+
+async function viewCustomer(id) {
+  const customer = customerCache.find(x => x.id === id);
+  if (!customer) return;
+
+  const { data: orders } = await sb
+    .from("orders")
+    .select("order_code,amount,status,ordered_at")
+    .eq("customer_id", id)
+    .order("ordered_at", { ascending:false });
+
+  const modal = document.createElement("div");
+  modal.className = "modal";
+
+  modal.innerHTML = `
+    <div class="modal-card">
+      <h3>${esc(customer.name)}</h3>
+
+      <p>
+        <b>Mobile:</b> ${esc(customer.phone)}<br>
+        <b>City:</b> ${esc(customer.city || "-")}<br>
+        <b>WhatsApp:</b>
+        <span class="badge ${customer.whatsapp_opt_in ? "green" : "orange"}">
+          ${customer.whatsapp_opt_in ? "Opt-in" : "No opt-in"}
+        </span>
+      </p>
+
+      <hr>
+      <h4>Order History</h4>
+
+      ${
+        orders?.length
+        ? `<div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>Order</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
+              <tbody>
+              ${orders.map(o => `
+                <tr>
+                  <td>${esc(o.order_code || "-")}</td>
+                  <td>${money(o.amount)}</td>
+                  <td>${esc(o.status)}</td>
+                  <td>${new Date(o.ordered_at).toLocaleDateString("en-IN")}</td>
+                </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>`
+        : `<div class="empty">No orders yet.</div>`
+      }
+
+      <div class="modal-actions">
+        <button class="secondary" onclick="this.closest('.modal').remove()">Close</button>
+        <button class="primary" onclick="this.closest('.modal').remove();editCustomer('${id}')">Edit Customer</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+}
+
+async function orders() {
+  const { data, error } = await sb
+    .from("orders")
+    .select("id,order_code,amount,status,telecaller,ordered_at")
+    .order("ordered_at", { ascending:false });
+
+  if (error) return `<div class="notice">${esc(error.message)}</div>`;
+
+  return `
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Order</th><th>Amount</th><th>Status</th><th>Telecaller</th><th>Date</th></tr></thead>
+        <tbody>
+        ${(data || []).map(o => `
+          <tr>
+            <td>${esc(o.order_code || o.id.slice(0,8))}</td>
+            <td>${money(o.amount)}</td>
+            <td>${esc(o.status)}</td>
+            <td>${esc(o.telecaller || "-")}</td>
+            <td>${new Date(o.ordered_at).toLocaleDateString("en-IN")}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function campaigns() {
+  return `<div class="notice">WhatsApp sending will be connected through the secure Meta Cloud API backend. Only opted-in customers and approved templates will be eligible.</div>
+  <div class="card"><h3>Campaign Manager</h3><p class="muted">Customer segmentation foundation is ready.</p></div>`;
+}
+
+async function templates() {
+  return `<div class="notice">Meta-approved WhatsApp templates will appear here after API integration.</div>`;
+}
+
+async function followups() {
+  return `<div class="card"><div class="empty">Follow-ups database is ready. Automation will be added next.</div></div>`;
+}
+
+async function staff() {
+  return `<div class="card"><div class="empty">Telecaller roles and permissions will be added next.</div></div>`;
+}
+
+async function reports() {
+  const { data } = await sb.from("orders").select("amount");
+  const sales = (data || []).reduce((a,x) => a + Number(x.amount || 0), 0);
+
+  return `<div class="grid">
+    <div class="card"><div class="label">Sales</div><div class="stat">${money(sales)}</div></div>
+    <div class="card"><div class="label">Orders</div><div class="stat">${(data || []).length}</div></div>
+  </div>`;
+}
+
+boot();
